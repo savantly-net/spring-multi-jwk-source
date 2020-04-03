@@ -1,0 +1,122 @@
+plugins {
+    id 'java-library'
+    id 'io.spring.dependency-management'
+	id 'org.springframework.boot' apply false
+	id 'signing'
+	id 'maven'
+}
+
+repositories {
+    mavenCentral()
+}
+
+group = 'net.savantly.security'
+archivesBaseName = "spring-multi-jwk-source"
+version = '0.0.1.RELEASE'
+
+ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
+ext.ossrhUsername = project.hasProperty('ossrhUsername') ? project.ossrhUsername : ''
+ext.ossrhPassword = project.hasProperty('ossrhPassword') ? project.ossrhPassword : ''
+
+// Add Javadoc JAR and sources JAR to artifact
+task javadocJar(type: Jar) {
+    classifier = 'javadoc'
+    from javadoc
+}
+task sourcesJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+artifacts {
+    archives javadocJar, sourcesJar
+}
+
+signing {
+	required { isReleaseVersion && gradle.taskGraph.hasTask("uploadArchives") }
+    useGpgCmd()
+    sign configurations.archives
+}
+
+dependencies {
+    // This dependency is exported to consumers, that is to say found on their compile classpath.
+    api 'com.nimbusds:nimbus-jose-jwt:8.5',
+    	'org.springframework.security:spring-security-oauth2-client',
+    	'org.springframework.security:spring-security-oauth2-jose',
+    	'org.springframework.security:spring-security-oauth2-resource-server',
+    	'com.fasterxml.jackson.core:jackson-databind'
+    	
+    implementation 'org.springframework:spring-webflux'
+
+    // Use JUnit Jupiter API for testing.
+    testImplementation "org.junit.jupiter:junit-jupiter-engine",
+    	"org.junit.jupiter:junit-jupiter-api",
+    	"org.junit.jupiter:junit-jupiter-params",
+    	"org.springframework.boot:spring-boot",
+    	"org.springframework.security:spring-security-test",
+    	"org.springframework.boot:spring-boot-test",
+    	'org.springframework.boot:spring-boot-starter-webflux',
+    	'org.springframework.cloud:spring-cloud-starter-security'
+	
+	testRuntimeOnly 'io.projectreactor.netty:reactor-netty'
+}
+
+test {
+    // Use junit platform for unit tests
+    useJUnitPlatform()
+}
+
+// Build, sign, and upload
+uploadArchives {
+    repositories {
+        mavenDeployer {
+
+            // Sign POM
+            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+            // Destination
+            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+
+            // Add required metadata to POM
+            pom.project {
+                name 'Spring Multi JWK Sources'
+                packaging 'jar'
+                description 'Provide multiple JWKs to Spring security'
+                url 'https://github.com/savantly-net/spring-multi-jwk-source'
+
+                scm {
+                    connection 'scm:git:git://github.com/savantly-net/spring-multi-jwk-source.git'
+                        developerConnection 'scm:git:ssh://github.com/savantly-net/spring-multi-jwk-source.git'
+                        url 'http://github.com/savantly-net/spring-multi-jwk-source/tree/master'
+                }
+
+                licenses {
+                    license {
+                        name 'The Apache License, Version 2.0'
+                        url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+
+                developers {
+                    developer {
+                        name 'Jeremy Branham'
+                        email 'Jeremy@Savantly.net'
+                        organization 'net.savantly'
+                        organizationUrl 'https://github.com/savantly-net/'
+                    }
+                }
+            }
+        }
+    }
+}
+
+dependencyManagement {
+	imports {
+		mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:Greenwich.SR3"
+	}
+}
